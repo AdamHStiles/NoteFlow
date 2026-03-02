@@ -1,0 +1,5 @@
+C:/Users/barre/source/repos/CPP_Projects/ProjectLaunchProject/build/Clone_of_Desktop_Qt_6_10_2_MinGW_64_bit-Debug/CMakeFiles/Chat.dir
+C:/Users/barre/source/repos/CPP_Projects/ProjectLaunchProject/build/Clone_of_Desktop_Qt_6_10_2_MinGW_64_bit-Debug/CMakeFiles/edit_cache.dir
+C:/Users/barre/source/repos/CPP_Projects/ProjectLaunchProject/build/Clone_of_Desktop_Qt_6_10_2_MinGW_64_bit-Debug/CMakeFiles/rebuild_cache.dir
+C:/Users/barre/source/repos/CPP_Projects/ProjectLaunchProject/build/Clone_of_Desktop_Qt_6_10_2_MinGW_64_bit-Debug/CMakeFiles/Chat_autogen_timestamp_deps.dir
+C:/Users/barre/source/repos/CPP_Projects/ProjectLaunchProject/build/Clone_of_Desktop_Qt_6_10_2_MinGW_64_bit-Debug/CMakeFiles/Chat_autogen.dir
