@@ -3,12 +3,16 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
 
 ChannelItemWidget::ChannelItemWidget(const QString &name, const QString &preview,
                                      int unread, QWidget *parent)
     : QWidget(parent)
 {
     setFixedHeight(52);
+
+    // adds a lil line to the bottom to seperate all the various channels
+    setStyleSheet( "QWidget {" " border-bottom: 1px solid #1A1A1A;" " background: transparent;" "}");
     auto *l = new QVBoxLayout(this);
     l->setContentsMargins(16, 0, 16, 0);
     l->setSpacing(2);
@@ -20,6 +24,13 @@ ChannelItemWidget::ChannelItemWidget(const QString &name, const QString &preview
     nameLabel->setStyleSheet(
         "color: #C8C8C8; font-size: 13px; font-weight: 600; background: transparent;");
     topRow->addWidget(nameLabel);
+
+
+    auto *uploadBtn = new QPushButton("+");
+    uploadBtn->setFixedSize(24,24);
+    topRow->addWidget(uploadBtn);
+    connect(uploadBtn, &QPushButton::clicked, this, &ChannelItemWidget::actionClicked);
+
     topRow->addStretch();
 
     if (unread > 0) {
