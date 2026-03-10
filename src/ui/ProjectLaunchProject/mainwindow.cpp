@@ -61,10 +61,12 @@ void MainWindow::buildUI()
 
     // ── Section header with + button ──
     auto *sectionHeader = new QWidget(sidebar);
-    sectionHeader->setFixedHeight(36);
-    sectionHeader->setStyleSheet("background: #0D0D0D;");
+    sectionHeader->setFixedHeight(56);
+    sectionHeader->setObjectName("sectionHeader");
+    sectionHeader->setStyleSheet("#sectionHeader { background: #111111; border-bottom: 1px solid #1E1E1E; border-right: 1px solid #1E1E1E}");
+
     auto *shl = new QHBoxLayout(sectionHeader);
-    shl->setContentsMargins(16, 0, 12, 0);
+    shl->setContentsMargins(16, 0, 16, 0);
 
     auto *sectionLabel = new QLabel("CHANNELS", sectionHeader);
     sectionLabel->setStyleSheet(
@@ -85,7 +87,7 @@ void MainWindow::buildUI()
     shl->addWidget(sectionLabel);
     shl->addStretch();
     shl->addWidget(addBtn);
-    sl->addSpacing(12);
+
     sl->addWidget(sectionHeader);
 
     // ── Inline channel input (hidden by default) ──
@@ -149,9 +151,10 @@ void MainWindow::buildUI()
 
     // ── User footer ──
     auto *footer = new QFrame(sidebar);
-    footer->setFixedHeight(52);
+    footer->setFixedHeight(65);
+    footer->setObjectName("footer");
     footer->setStyleSheet(
-        "QFrame { background: #0D0D0D; border-top: 1px solid #1A1A1A; }");
+        "#footer { background: #111111; border-top: 1px solid #1A1A1A; border-right: 1px solid #1A1A1A;}");
     auto *fl = new QHBoxLayout(footer);
     fl->setContentsMargins(16, 0, 16, 0);
     fl->setSpacing(0);
@@ -199,11 +202,21 @@ void MainWindow::showChannelInput(bool visible)
 
 void MainWindow::addChannelToList(const QString &name)
 {
+    // contains data of the new channel
     auto *item = new QListWidgetItem(m_channelList);
     item->setSizeHint(QSize(220, 52));
     item->setData(Qt::UserRole, name);
     item->setBackground(Qt::transparent);
-    m_channelList->setItemWidget(item, new ChannelItemWidget(name, "", 0, m_channelList));
+
+    // this the actual widget
+    auto *itemWidget = new ChannelItemWidget(name, "", 0, m_channelList);
+    m_channelList->setItemWidget(item, itemWidget);
+
+    connect(itemWidget, &ChannelItemWidget::actionClicked, this, [this, name]() {
+        QString viewer = QCoreApplication::applicationDirPath() + "/CodeViewer.exe";
+        QProcess::startDetached(viewer, {});
+
+    });
 }
 
 void MainWindow::onAddChannelConfirmed()
