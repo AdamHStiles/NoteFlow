@@ -81,6 +81,23 @@ function broadcast(channelName, payload, exclude = null) {
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
+const keepAlive = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (!ws.isAlive) {
+      ws.terminate();
+      return;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 25000);
+
+wss.on("close", () => clearInterval(keepAlive));
+
+wss.on("connection", (ws) => {
+  ws.isAlive = true;
+  ws.on("pong", () => { ws.isAlive = true; });
+
 wss.on("connection", (ws) => {
   ws.currentChannel = null;
   ws.displayName    = "anonymous";
