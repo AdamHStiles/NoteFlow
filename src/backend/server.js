@@ -48,6 +48,26 @@ app.post("/notes", async (req, res) => {
   }
 });
 
+app.post("/files", async (req,res) => {
+  try{
+    const file = req.body;
+    const result = await db.collection("files").insertOne(file);
+    res.json({success: true, id: result.insertedId});
+  } catch (err) {
+    res.status(500).json({error: err.message});
+  }
+});
+
+app.get("/files", async (req,res) => {
+  try {
+    const files = await db.collection("files").find({ channel: req.params.channel }).toArray();
+    res.json(files);
+  } catch (err) {
+    res.status(500).json({error: err.message });
+  }
+});
+  
+
 app.get("/notes", async (req, res) => {
   try {
     const notes = await db.collection("notes").find().toArray();
