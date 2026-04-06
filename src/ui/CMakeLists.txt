@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.19)
-project(testproject3 LANGUAGES CXX)
+project(NoteFlow LANGUAGES CXX)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets WebSockets PrintSupport)
 
 qt_standard_project_setup()
 
-qt_add_executable(testproject3
+qt_add_executable(NoteFlow
     WIN32 MACOSX_BUNDLE
     main.cpp
     mainwindow.cpp
@@ -26,7 +26,7 @@ qt_add_executable(testproject3
     fileEditor.h
 )
 
-target_link_libraries(testproject3
+target_link_libraries(NoteFlow
     PRIVATE
         Qt::Core
         Qt::Widgets
@@ -36,14 +36,14 @@ target_link_libraries(testproject3
         "C:/QScintilla_src/src/release/libqscintilla2_qt6.a" # your directory here!
 )
 
-install(TARGETS testproject3
+install(TARGETS NoteFlow
     BUNDLE  DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 qt_generate_deploy_app_script(
-    TARGET testproject3
+    TARGET NoteFlow
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )

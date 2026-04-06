@@ -1,4 +1,4 @@
-/build/
+/src/ui/build/
 /build-*/
 /mongo-cxx-driver-*/build/
 CMakeCache.txt
