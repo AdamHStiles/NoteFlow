@@ -8,7 +8,6 @@ class explorer : public QWidget
     Q_OBJECT
 public:
     explicit explorer(QWidget *parent = nullptr);
-
 signals:
 };
 

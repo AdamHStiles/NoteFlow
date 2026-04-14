@@ -57,6 +57,11 @@ fileEditor::fileEditor(QWidget *parent) : QWidget{parent}{
     editor->setCaretWidth(2);
     editor->setCaretForegroundColor(QColor(0x11, 0x11, 0x11));
     editor->setCaretLineBackgroundColor(QColor(0x22, 0x22, 0x22));
+
+    editor->setTabWidth(4);
+    editor->setIndentationsUseTabs(false);
+    editor->setBackspaceUnindents(true);
+    editor->setAutoIndent(true);
     editor->setBraceMatching(QsciScintilla::SloppyBraceMatch);
 
 
@@ -65,9 +70,26 @@ fileEditor::fileEditor(QWidget *parent) : QWidget{parent}{
     root->addWidget(editor);
 }
 
-//void fileEditor::loadFile(QFile *file, QString *filename){
-//    if(file.open(QIODeviceBase::ReadOnly)){
-//        this->editor->read(file);
-//        this->root->topBar->topLayout->fileLabel->setText(filename);
-//    }
-//}
+void fileEditor::loadFile(QFile *file, QString *filename){
+    int i, j, isExt = 0;
+    ext.resize(7); // can an extension be any longer than this?
+    j = 0;
+    if(file->open(QIODeviceBase::ReadOnly)){
+        this->editor->read(file);
+        this->fileLabel->setText(*filename);
+    }
+    for(i = 0; i < filename->length(); ++i){
+        if(filename->at(i) == QChar('.'))
+            isExt = 1;
+        if(isExt){
+            ext[j] = QChar(filename->at(i));
+            ++j;
+        }
+    }
+    // set the lexer here later
+
+}
+void fileEditor::newFile(QString *filename){
+    fileLabel->setText(*filename);
+    editor->clear();
+}

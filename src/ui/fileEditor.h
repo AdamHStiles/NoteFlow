@@ -34,7 +34,8 @@ public:
 signals:
 
 private slots:
-   // void loadFile(QFile file); // uploads a file to the editor and updates header
+    void loadFile(QFile *file, QString *filename); // uploads a file to the editor and updates header
+    void newFile(QString *filename);
 
 private:
     QVBoxLayout *root;
@@ -44,6 +45,7 @@ private:
     QFrame *divider;
     QsciScintilla *editor;
     QFont font;
+    QString ext; //file extension
 };
 
 #endif // FILEVIEWER_H
