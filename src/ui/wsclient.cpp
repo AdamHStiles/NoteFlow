@@ -124,7 +124,9 @@ void WsClient::onTextMessage(const QString &raw)
 
     // ── File upload ──────────────────────────────────────────────────────
     else if (type == "file_upload") {
-        if (obj["sender"].toString() == m_name) return;
+        // No sender check here — the server already excludes us from live
+        // broadcasts, and on join we need to receive ALL files including
+        // ones we originally uploaded.
 
         QByteArray content = QByteArray::fromBase64(
             obj["content"].toString().toLatin1());
