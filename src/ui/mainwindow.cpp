@@ -23,7 +23,7 @@
 #include <QStandardPaths>
 #include <QDebug>
 #include <Qsci/qsciscintilla.h>
-#include "QFileDialog"
+#include <QFileDialog>
 
 
 MainWindow::MainWindow(const QString &serverUrl, const QString &displayName, QWidget *parent)
@@ -446,21 +446,31 @@ void MainWindow::onRemoteFileEdit(const QString &channel, const QString &filenam
 void MainWindow::onFileUploadReceived(const QString &channel, const QString &filename,
                                       const QByteArray &content)
 {
+    qDebug() << "[FileUpload] Received:" << filename
+             << "for channel:" << channel
+             << "size:" << content.size() << "bytes";
+
     QString localDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-    + "/NoteFlow/" + channel;
+                       + "/NoteFlow/" + channel;
     QDir().mkpath(localDir);
     QString localPath = localDir + "/" + filename;
 
     QFile file(localPath);
-    if (!file.open(QIODevice::WriteOnly)) return;
+    if (!file.open(QIODevice::WriteOnly)) {
+        qDebug() << "[FileUpload] Failed to write file:" << localPath;
+        return;
+    }
     file.write(content);
     file.close();
 
+    bool channelFound = false;
     for (int i = 0; i < m_channelTree->topLevelItemCount(); ++i) {
         QTreeWidgetItem *channelItem = m_channelTree->topLevelItem(i);
         QString data = channelItem->data(0, Qt::UserRole).toString();
 
         if (data == "CHANNEL:" + channel) {
+            channelFound = true;
+
             // Avoid duplicates
             bool alreadyExists = false;
             for (int j = 0; j < channelItem->childCount(); ++j) {
@@ -470,7 +480,10 @@ void MainWindow::onFileUploadReceived(const QString &channel, const QString &fil
                     break;
                 }
             }
-            if (alreadyExists) break;
+            if (alreadyExists) {
+                qDebug() << "[FileUpload] Duplicate, skipping:" << filename;
+                break;
+            }
 
             auto *fileItem = new QTreeWidgetItem(channelItem);
             fileItem->setData(0, Qt::UserRole, "FILE:" + localPath);
@@ -483,7 +496,12 @@ void MainWindow::onFileUploadReceived(const QString &channel, const QString &fil
                         m_editor->loadFile(path);
                         m_currentFile = QFileInfo(path).fileName();
                     });
+
+            qDebug() << "[FileUpload] Added to tree:" << filename;
             break;
         }
     }
+
+    if (!channelFound)
+        qDebug() << "[FileUpload] Channel not found in tree:" << channel;
 }
