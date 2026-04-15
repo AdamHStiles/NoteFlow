@@ -19,8 +19,11 @@
 #include <QSplitter>
 #include <QFileInfo>
 #include <QFile>
+#include <QDir>
+#include <QStandardPaths>
 #include <QDebug>
 #include <Qsci/qsciscintilla.h>
+#include "QFileDialog"
 
 
 MainWindow::MainWindow(const QString &serverUrl, const QString &displayName, QWidget *parent)
@@ -35,6 +38,11 @@ MainWindow::MainWindow(const QString &serverUrl, const QString &displayName, QWi
     connect(m_ws, &WsClient::disconnected,    this, &MainWindow::onWsDisconnected);
     connect(m_ws, &WsClient::messageReceived, this, &MainWindow::onMessageReceived);
     connect(m_ws, &WsClient::errorOccurred,   this, &MainWindow::onWsError);
+
+    // Persistence signals
+    connect(m_ws, &WsClient::channelListReceived,    this, &MainWindow::onChannelListReceived);
+    connect(m_ws, &WsClient::channelCreated,         this, &MainWindow::onChannelCreated);
+    connect(m_ws, &WsClient::messageHistoryReceived, this, &MainWindow::onMessageHistoryReceived);
 
     buildUI();
 
@@ -58,7 +66,7 @@ void MainWindow::buildUI()
 
     // ── Sidebar ──────────────────────────────
     auto *sidebar = new QWidget(central);
-    sidebar->setFixedWidth(220); // this makes it really jittery
+    sidebar->setFixedWidth(220);
     sidebar->setStyleSheet(
         "QWidget#sidebar { background: #0D0D0D; border-right: 1px solid #1A1A1A; }");
     sidebar->setObjectName("sidebar");
@@ -71,7 +79,9 @@ void MainWindow::buildUI()
     auto *sectionHeader = new QWidget(sidebar);
     sectionHeader->setFixedHeight(56);
     sectionHeader->setObjectName("sectionHeader");
-    sectionHeader->setStyleSheet("#sectionHeader { background: #111111; border-bottom: 1px solid #1E1E1E; border-right: 1px solid #1E1E1E}");
+    sectionHeader->setStyleSheet(
+        "#sectionHeader { background: #111111; border-bottom: 1px solid #1E1E1E; "
+        "border-right: 1px solid #1E1E1E; }");
 
     auto *shl = new QHBoxLayout(sectionHeader);
     shl->setContentsMargins(16, 0, 16, 0);
@@ -96,7 +106,6 @@ void MainWindow::buildUI()
     shl->addStretch();
     shl->addWidget(addBtn);
     sl->addWidget(sectionHeader);
-
 
     // ── Inline channel input (hidden by default) ──
     m_channelInputWidget = new QWidget(sidebar);
@@ -152,6 +161,7 @@ void MainWindow::buildUI()
         "}"
         "QTreeWidget::item:hover:!selected {"
         "  background: #111111;"
+        "}"
         "QScrollBar:vertical { width: 0px; }");
 
     sl->addWidget(m_channelTree);
@@ -162,7 +172,8 @@ void MainWindow::buildUI()
     footer->setFixedHeight(65);
     footer->setObjectName("footer");
     footer->setStyleSheet(
-        "#footer { background: #111111; border-top: 1px solid #1A1A1A; border-right: 1px solid #1A1A1A;}");
+        "#footer { background: #111111; border-top: 1px solid #1A1A1A; "
+        "border-right: 1px solid #1A1A1A; }");
     auto *fl = new QHBoxLayout(footer);
     fl->setContentsMargins(16, 0, 16, 0);
     fl->setSpacing(0);
@@ -181,11 +192,12 @@ void MainWindow::buildUI()
     fl->addWidget(userNameLabel);
     fl->addStretch();
     sl->addWidget(footer);
-    // Editor and splitter
+
+    // ── Editor and splitter ──
     QSplitter *splitter = new QSplitter(Qt::Horizontal);
     m_editor = new fileEditor(this);
 
-    // ── Chat View ────────────────────────────
+    // ── Chat View ──
     m_chatView = new ChatView(central);
     connect(m_chatView, &ChatView::messageSent, this, &MainWindow::onSendMessage);
 
@@ -193,14 +205,20 @@ void MainWindow::buildUI()
     splitter->addWidget(sidebar);
     splitter->addWidget(m_editor);
     splitter->addWidget(m_chatView);
-    // ── Connections ──────────────────────────
+
+    // ── Connections ──
     connect(addBtn, &QPushButton::clicked, this, [this]() {
         showChannelInput(!m_channelInputWidget->isVisible());
     });
-    connect(confirmBtn,    &QPushButton::clicked,     this, &MainWindow::onAddChannelConfirmed);
-    connect(m_channelInput,&QLineEdit::returnPressed, this, &MainWindow::onAddChannelConfirmed);
-    connect(m_channelTree, &QTreeWidget::itemClicked,
+    connect(confirmBtn,     &QPushButton::clicked,     this, &MainWindow::onAddChannelConfirmed);
+    connect(m_channelInput, &QLineEdit::returnPressed, this, &MainWindow::onAddChannelConfirmed);
+    connect(m_channelTree,  &QTreeWidget::itemClicked,
             this, &MainWindow::onTreeItemClicked);
+
+    // ── File sync connections ──
+    connect(m_ws,     &WsClient::fileEditReceived,   this, &MainWindow::onRemoteFileEdit);
+    connect(m_ws,     &WsClient::fileUploadReceived, this, &MainWindow::onFileUploadReceived);
+    connect(m_editor, &fileEditor::localFileChanged, this, &MainWindow::onLocalFileChanged);
 }
 
 void MainWindow::showChannelInput(bool visible)
@@ -214,32 +232,75 @@ void MainWindow::showChannelInput(bool visible)
 
 void MainWindow::addChannelToList(const QString &name)
 {
-    // data item
     auto *channelItem = new QTreeWidgetItem(m_channelTree);
-    channelItem->setData(0, Qt::UserRole, "CHANNEL:" + name); //CHANNEL Says its a channel type
-    /*item->setBackground(Qt::transparent);
-    item->setSizeHint(QSize(220, 52));*/
+    channelItem->setData(0, Qt::UserRole, "CHANNEL:" + name);
 
-    // this the actual widget
     auto *itemWidget = new ChannelItemWidget(name, "", 0, m_channelTree);
     m_channelTree->setItemWidget(channelItem, 0, itemWidget);
 
-    // on the add button being pushed creates a fileItemWidget
     connect(itemWidget, &ChannelItemWidget::addFile, this, [this, channelItem, name]() {
-        QString filePath = QFileDialog::getOpenFileName(this, "Upload file to" + name);
-        if(!filePath.isEmpty()){
+        QString filePath = QFileDialog::getOpenFileName(this, "Upload file to " + name);
+        if (!filePath.isEmpty()) {
             auto *fileItem = new QTreeWidgetItem(channelItem);
             fileItem->setData(0, Qt::UserRole, "FILE:" + filePath);
             auto *fileWidget = new fileItemWidget(m_channelTree, filePath);
             m_channelTree->setItemWidget(fileItem, 0, fileWidget);
             channelItem->setExpanded(true);
-            connect(fileWidget, &fileItemWidget::fileSelected, m_editor, &fileEditor::loadFile);
+
+            connect(fileWidget, &fileItemWidget::fileSelected,
+                    this, [this](const QString &path) {
+                        m_editor->loadFile(path);
+                        m_currentFile = QFileInfo(path).fileName();
+                    });
+
+            // Broadcast the file to everyone in the channel
+            QFile file(filePath);
+            if (file.open(QIODevice::ReadOnly)) {
+                QByteArray content = file.readAll();
+                file.close();
+                m_ws->sendFileUpload(name, QFileInfo(filePath).fileName(), content);
+            }
         }
-        // add delete function here
     });
 }
 
-void MainWindow::onAddChannelConfirmed() // TEST AI CODE TO BE REPLACED
+// ── Persistence handlers ─────────────────────────────────────────────────────
+
+void MainWindow::onChannelListReceived(const QStringList &channels)
+{
+    // Server sends this on connect — populate sidebar with persisted channels
+    for (const QString &name : channels) {
+        if (!m_channels.contains(name)) {
+            m_channels.append(name);
+            addChannelToList(name);
+        }
+    }
+}
+
+void MainWindow::onChannelCreated(const QString &channel)
+{
+    // Another user created a channel — add it to our sidebar
+    if (!m_channels.contains(channel)) {
+        m_channels.append(channel);
+        addChannelToList(channel);
+    }
+}
+
+void MainWindow::onMessageHistoryReceived(const QString &channel,
+                                          const QVector<Message> &messages)
+{
+    // Replace local message store with server history
+    m_messages[channel] = messages;
+
+    // If this is the channel we're currently looking at, reload the view
+    if (channel == m_activeChannel) {
+        m_chatView->loadChannel(m_activeChannel, m_messages[m_activeChannel]);
+    }
+}
+
+// ── Channel management ───────────────────────────────────────────────────────
+
+void MainWindow::onAddChannelConfirmed()
 {
     QString name = m_channelInput->text().trimmed().toLower();
     name.replace(" ", "-");
@@ -252,35 +313,32 @@ void MainWindow::onAddChannelConfirmed() // TEST AI CODE TO BE REPLACED
     addChannelToList(name);
     showChannelInput(false);
 
-    // Select the new channel (it will be the last top-level item in the tree)
+    // Persist the channel on the server and notify other users
+    m_ws->sendChannelCreate(name);
+
+    // Select the new channel
     int lastIndex = m_channelTree->topLevelItemCount() - 1;
     QTreeWidgetItem *newItem = m_channelTree->topLevelItem(lastIndex);
 
     if (newItem) {
         m_channelTree->setCurrentItem(newItem);
-        // Manually trigger the click logic to load the channel
         onTreeItemClicked(newItem, 0);
     }
 }
-void MainWindow::onRemoveCurrentChannel() // TEST AI CODE TO BE REPLACED
+
+void MainWindow::onRemoveCurrentChannel()
 {
     QTreeWidgetItem *currentItem = m_channelTree->currentItem();
     if (!currentItem) return;
 
-    // Read the UserRole data to figure out what we are deleting
     QString data = currentItem->data(0, Qt::UserRole).toString();
 
-    // If it's a channel, remove it and its messages
     if (data.startsWith("CHANNEL:")) {
         QString name = data.mid(8);
         m_channels.removeOne(name);
         m_messages.remove(name);
-
-        // Deleting a QTreeWidgetItem automatically removes it from the QTreeWidget
-        // and safely cleans up any children (files) under it.
         delete currentItem;
 
-        // Select the top channel if there are any left
         if (!m_channels.isEmpty()) {
             QTreeWidgetItem *topItem = m_channelTree->topLevelItem(0);
             m_channelTree->setCurrentItem(topItem);
@@ -289,26 +347,30 @@ void MainWindow::onRemoveCurrentChannel() // TEST AI CODE TO BE REPLACED
             m_activeChannel.clear();
         }
     }
-    // If you want users to be able to delete files from the tree later:
     else if (data.startsWith("FILE:")) {
         delete currentItem;
     }
 }
 
-void MainWindow::onTreeItemClicked(QTreeWidgetItem *item, int column) //AI Code to be replaced
+void MainWindow::onTreeItemClicked(QTreeWidgetItem *item, int column)
 {
+    Q_UNUSED(column);
     if (!item) return;
 
     QString data = item->data(0, Qt::UserRole).toString();
 
-    // Only switch the chat view if the user clicked a Channel
     if (data.startsWith("CHANNEL:")) {
-        m_activeChannel = data.mid(8); // Strip "CHANNEL:" prefix
+        m_activeChannel = data.mid(8);
 
+        // Load whatever we have locally (may be empty on first join)
         m_chatView->loadChannel(m_activeChannel, m_messages[m_activeChannel]);
+
+        // Join on the server — this triggers message_history + file list
         m_ws->joinChannel(m_activeChannel);
     }
 }
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
 
 void MainWindow::onSendMessage(const QString &text)
 {
@@ -333,15 +395,18 @@ void MainWindow::onMessageReceived(const QString &channel, const Message &msg)
         m_chatView->appendMessage(msg);
 }
 
+// ── Connection state ─────────────────────────────────────────────────────────
+
 void MainWindow::onWsConnected()
 {
     m_statusDot->setStyleSheet("background: #4CAF50; border-radius: 4px;");
     m_chatView->setInputEnabled(true);
     statusBar()->showMessage("Connected  —  " + m_myName);
+
+    // Re-join the active channel so we get fresh history + files
     if (!m_activeChannel.isEmpty())
         m_ws->joinChannel(m_activeChannel);
 }
-
 
 void MainWindow::onWsDisconnected()
 {
@@ -357,4 +422,68 @@ void MainWindow::onWsDisconnected()
 void MainWindow::onWsError(const QString &reason)
 {
     statusBar()->showMessage("Error: " + reason);
+}
+
+// ── File sync ────────────────────────────────────────────────────────────────
+
+void MainWindow::onLocalFileChanged(const QString &filename, int position, int length,
+                                    const QString &text, bool isAddition)
+{
+    if (m_activeChannel.isEmpty()) return;
+    m_ws->sendFileEdit(m_activeChannel, filename, position, length, text, isAddition);
+}
+
+void MainWindow::onRemoteFileEdit(const QString &channel, const QString &filename,
+                                  int position, int length, const QString &text,
+                                  bool isAddition)
+{
+    if (channel != m_activeChannel) return;
+    if (filename != m_currentFile) return;
+
+    m_editor->applyRemoteEdit(position, length, text, isAddition);
+}
+
+void MainWindow::onFileUploadReceived(const QString &channel, const QString &filename,
+                                      const QByteArray &content)
+{
+    QString localDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+    + "/NoteFlow/" + channel;
+    QDir().mkpath(localDir);
+    QString localPath = localDir + "/" + filename;
+
+    QFile file(localPath);
+    if (!file.open(QIODevice::WriteOnly)) return;
+    file.write(content);
+    file.close();
+
+    for (int i = 0; i < m_channelTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *channelItem = m_channelTree->topLevelItem(i);
+        QString data = channelItem->data(0, Qt::UserRole).toString();
+
+        if (data == "CHANNEL:" + channel) {
+            // Avoid duplicates
+            bool alreadyExists = false;
+            for (int j = 0; j < channelItem->childCount(); ++j) {
+                QString childData = channelItem->child(j)->data(0, Qt::UserRole).toString();
+                if (childData == "FILE:" + localPath) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+            if (alreadyExists) break;
+
+            auto *fileItem = new QTreeWidgetItem(channelItem);
+            fileItem->setData(0, Qt::UserRole, "FILE:" + localPath);
+            auto *fileWidget = new fileItemWidget(m_channelTree, localPath);
+            m_channelTree->setItemWidget(fileItem, 0, fileWidget);
+            channelItem->setExpanded(true);
+
+            connect(fileWidget, &fileItemWidget::fileSelected,
+                    this, [this](const QString &path) {
+                        m_editor->loadFile(path);
+                        m_currentFile = QFileInfo(path).fileName();
+                    });
+            break;
+        }
+    }
 }
