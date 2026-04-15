@@ -42,6 +42,18 @@ private slots:
     void onWsError(const QString &reason);
     void onAddChannelConfirmed();
     void onRemoveCurrentChannel();
+    void onLocalFileChanged(const QString &filename, int position, int length,
+                            const QString &text, bool isAddition);
+    void onRemoteFileEdit(const QString &channel, const QString &filename,
+                          int position, int length, const QString &text, bool isAddition);
+    void onFileUploadReceived(const QString &channel, const QString &filename,
+                              const QByteArray &content);
+
+    // Persistence slots
+    void onChannelListReceived(const QStringList &channels);
+    void onChannelCreated(const QString &channel);
+    void onMessageHistoryReceived(const QString &channel,
+                                  const QVector<Message> &messages);
 
 private:
     WsClient    *m_ws;
@@ -54,6 +66,7 @@ private:
     QString      m_activeChannel;
     QString      m_myName;
     QString      m_serverUrl;
-    fileEditor *m_editor;
+    QString      m_currentFile;
+    fileEditor  *m_editor         = nullptr;
     QMap<QString, QVector<Message>> m_messages;
 };
