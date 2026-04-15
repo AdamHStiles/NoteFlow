@@ -4,8 +4,11 @@
 #include <QVector>
 #include <QStringList>
 #include "Message.h"
+#include "fileEditor.h"
+#include "fileitemwidget.h"
 #include <QProcess>
 #include <QCoreApplication>
+#include <QTreeWidget>
 
 class WsClient;
 class ChatView;
@@ -15,6 +18,9 @@ class QLineEdit;
 class QPushButton;
 class QStackedWidget;
 class QLabel;
+class fileEditor;
+class fileItemWidget;
+class QTreeWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -28,7 +34,7 @@ private:
     void showChannelInput(bool visible);
 
 private slots:
-    void onChannelChanged(int row);
+    void onTreeItemClicked(QTreeWidgetItem *item, int col);
     void onSendMessage(const QString &text);
     void onMessageReceived(const QString &channel, const Message &msg);
     void onWsConnected();
@@ -40,7 +46,7 @@ private slots:
 private:
     WsClient    *m_ws;
     ChatView    *m_chatView       = nullptr;
-    QListWidget *m_channelList    = nullptr;
+    QTreeWidget *m_channelTree    = nullptr;
     QFrame      *m_statusDot      = nullptr;
     QLineEdit   *m_channelInput   = nullptr;
     QWidget     *m_channelInputWidget = nullptr;
@@ -48,5 +54,6 @@ private:
     QString      m_activeChannel;
     QString      m_myName;
     QString      m_serverUrl;
+    fileEditor *m_editor;
     QMap<QString, QVector<Message>> m_messages;
 };

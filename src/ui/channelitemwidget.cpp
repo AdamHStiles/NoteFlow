@@ -1,4 +1,4 @@
-#include "ChannelItemWidget.h"
+    #include "ChannelItemWidget.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -29,7 +29,7 @@ ChannelItemWidget::ChannelItemWidget(const QString &name, const QString &preview
     auto *uploadBtn = new QPushButton("+");
     uploadBtn->setFixedSize(24,24);
     topRow->addWidget(uploadBtn);
-    connect(uploadBtn, &QPushButton::clicked, this, &ChannelItemWidget::actionClicked);
+    connect(uploadBtn, &QPushButton::clicked, this, &ChannelItemWidget::addFile);
 
     topRow->addStretch();
 

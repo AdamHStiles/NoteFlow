@@ -1,8 +1,9 @@
-#include "MainWindow.h"
+#include "mainwindow.h"
 #include "WsClient.h"
 #include "ChatView.h"
 #include "ChannelItemWidget.h"
 #include "fileEditor.h"
+#include "fileitemwidget.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -16,6 +17,11 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QSplitter>
+#include <QFileInfo>
+#include <QFile>
+#include <QDebug>
+#include <Qsci/qsciscintilla.h>
+
 
 MainWindow::MainWindow(const QString &serverUrl, const QString &displayName, QWidget *parent)
     : QMainWindow(parent), m_myName(displayName), m_serverUrl(serverUrl)
@@ -52,7 +58,7 @@ void MainWindow::buildUI()
 
     // ── Sidebar ──────────────────────────────
     auto *sidebar = new QWidget(central);
-    sidebar->setFixedWidth(220);
+    sidebar->setFixedWidth(220); // this makes it really jittery
     sidebar->setStyleSheet(
         "QWidget#sidebar { background: #0D0D0D; border-right: 1px solid #1A1A1A; }");
     sidebar->setObjectName("sidebar");
@@ -61,7 +67,7 @@ void MainWindow::buildUI()
     sl->setContentsMargins(0, 0, 0, 0);
     sl->setSpacing(0);
 
-    // ── Section header with + button ──
+    // ── Channel Section header with + button ──
     auto *sectionHeader = new QWidget(sidebar);
     sectionHeader->setFixedHeight(56);
     sectionHeader->setObjectName("sectionHeader");
@@ -72,7 +78,7 @@ void MainWindow::buildUI()
 
     auto *sectionLabel = new QLabel("CHANNELS", sectionHeader);
     sectionLabel->setStyleSheet(
-        "color: #333333; font-size: 10px; font-weight: 600; "
+        "color: #E0E0E0; font-size: 10px; font-weight: 600; "
         "letter-spacing: 0.12em; background: transparent;");
 
     auto *addBtn = new QPushButton("+", sectionHeader);
@@ -89,7 +95,6 @@ void MainWindow::buildUI()
     shl->addWidget(sectionLabel);
     shl->addStretch();
     shl->addWidget(addBtn);
-
     sl->addWidget(sectionHeader);
 
 
@@ -129,27 +134,27 @@ void MainWindow::buildUI()
     cil->addWidget(confirmBtn);
     sl->addWidget(m_channelInputWidget);
 
-    // ── Channel list ──
-    m_channelList = new QListWidget(sidebar);
-    m_channelList->setFrameShape(QFrame::NoFrame);
-    m_channelList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_channelList->setStyleSheet(
-        "QListWidget {"
+    // ── Channel Tree ──
+    m_channelTree = new QTreeWidget(sidebar);
+    m_channelTree->setFrameShape(QFrame::NoFrame);
+    m_channelTree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_channelTree->setIndentation(15);
+    m_channelTree->setHeaderHidden(true);
+    m_channelTree->setStyleSheet(
+        "QTreeWidget {"
         "  background: #0D0D0D; border: none; outline: none;"
         "}"
-        "QListWidget::item {"
+        "QTreeWidget::item {"
         "  border: none; padding: 0px; background: transparent;"
         "}"
-        "QListWidget::item:selected {"
+        "QTreeWidget::item:selected {"
         "  background: #161616; border-left: 2px solid #505050;"
         "}"
-        "QListWidget::item:hover:!selected {"
+        "QTreeWidget::item:hover:!selected {"
         "  background: #111111;"
-        "}"
         "QScrollBar:vertical { width: 0px; }");
-    m_channelList->setSpacing(0);
 
-    sl->addWidget(m_channelList);
+    sl->addWidget(m_channelTree);
     sl->addStretch();
 
     // ── User footer ──
@@ -176,25 +181,26 @@ void MainWindow::buildUI()
     fl->addWidget(userNameLabel);
     fl->addStretch();
     sl->addWidget(footer);
-
-    fileEditor *editor = new fileEditor(this);
+    // Editor and splitter
+    QSplitter *splitter = new QSplitter(Qt::Horizontal);
+    m_editor = new fileEditor(this);
 
     // ── Chat View ────────────────────────────
     m_chatView = new ChatView(central);
     connect(m_chatView, &ChatView::messageSent, this, &MainWindow::onSendMessage);
 
-    root->addWidget(sidebar);
-    root->addWidget(editor);
-    root->addWidget(m_chatView);
-
+    root->addWidget(splitter);
+    splitter->addWidget(sidebar);
+    splitter->addWidget(m_editor);
+    splitter->addWidget(m_chatView);
     // ── Connections ──────────────────────────
     connect(addBtn, &QPushButton::clicked, this, [this]() {
         showChannelInput(!m_channelInputWidget->isVisible());
     });
     connect(confirmBtn,    &QPushButton::clicked,     this, &MainWindow::onAddChannelConfirmed);
     connect(m_channelInput,&QLineEdit::returnPressed, this, &MainWindow::onAddChannelConfirmed);
-    connect(m_channelList, &QListWidget::currentRowChanged,
-            this, &MainWindow::onChannelChanged);
+    connect(m_channelTree, &QTreeWidget::itemClicked,
+            this, &MainWindow::onTreeItemClicked);
 }
 
 void MainWindow::showChannelInput(bool visible)
@@ -208,24 +214,32 @@ void MainWindow::showChannelInput(bool visible)
 
 void MainWindow::addChannelToList(const QString &name)
 {
-    // contains data of the new channel
-    auto *item = new QListWidgetItem(m_channelList);
-    item->setSizeHint(QSize(220, 52));
-    item->setData(Qt::UserRole, name);
-    item->setBackground(Qt::transparent);
+    // data item
+    auto *channelItem = new QTreeWidgetItem(m_channelTree);
+    channelItem->setData(0, Qt::UserRole, "CHANNEL:" + name); //CHANNEL Says its a channel type
+    /*item->setBackground(Qt::transparent);
+    item->setSizeHint(QSize(220, 52));*/
 
     // this the actual widget
-    auto *itemWidget = new ChannelItemWidget(name, "", 0, m_channelList);
-    m_channelList->setItemWidget(item, itemWidget);
+    auto *itemWidget = new ChannelItemWidget(name, "", 0, m_channelTree);
+    m_channelTree->setItemWidget(channelItem, 0, itemWidget);
 
-    connect(itemWidget, &ChannelItemWidget::actionClicked, this, [this, name]() {
-        QString viewer = QCoreApplication::applicationDirPath() + "/CodeViewer.exe";
-        QProcess::startDetached(viewer, {});
-
+    // on the add button being pushed creates a fileItemWidget
+    connect(itemWidget, &ChannelItemWidget::addFile, this, [this, channelItem, name]() {
+        QString filePath = QFileDialog::getOpenFileName(this, "Upload file to" + name);
+        if(!filePath.isEmpty()){
+            auto *fileItem = new QTreeWidgetItem(channelItem);
+            fileItem->setData(0, Qt::UserRole, "FILE:" + filePath);
+            auto *fileWidget = new fileItemWidget(m_channelTree, filePath);
+            m_channelTree->setItemWidget(fileItem, 0, fileWidget);
+            channelItem->setExpanded(true);
+            connect(fileWidget, &fileItemWidget::fileSelected, m_editor, &fileEditor::loadFile);
+        }
+        // add delete function here
     });
 }
 
-void MainWindow::onAddChannelConfirmed()
+void MainWindow::onAddChannelConfirmed() // TEST AI CODE TO BE REPLACED
 {
     QString name = m_channelInput->text().trimmed().toLower();
     name.replace(" ", "-");
@@ -238,32 +252,62 @@ void MainWindow::onAddChannelConfirmed()
     addChannelToList(name);
     showChannelInput(false);
 
-    // Select the new channel
-    m_channelList->setCurrentRow(m_channelList->count() - 1);
-    m_ws->joinChannel(name);
+    // Select the new channel (it will be the last top-level item in the tree)
+    int lastIndex = m_channelTree->topLevelItemCount() - 1;
+    QTreeWidgetItem *newItem = m_channelTree->topLevelItem(lastIndex);
+
+    if (newItem) {
+        m_channelTree->setCurrentItem(newItem);
+        // Manually trigger the click logic to load the channel
+        onTreeItemClicked(newItem, 0);
+    }
+}
+void MainWindow::onRemoveCurrentChannel() // TEST AI CODE TO BE REPLACED
+{
+    QTreeWidgetItem *currentItem = m_channelTree->currentItem();
+    if (!currentItem) return;
+
+    // Read the UserRole data to figure out what we are deleting
+    QString data = currentItem->data(0, Qt::UserRole).toString();
+
+    // If it's a channel, remove it and its messages
+    if (data.startsWith("CHANNEL:")) {
+        QString name = data.mid(8);
+        m_channels.removeOne(name);
+        m_messages.remove(name);
+
+        // Deleting a QTreeWidgetItem automatically removes it from the QTreeWidget
+        // and safely cleans up any children (files) under it.
+        delete currentItem;
+
+        // Select the top channel if there are any left
+        if (!m_channels.isEmpty()) {
+            QTreeWidgetItem *topItem = m_channelTree->topLevelItem(0);
+            m_channelTree->setCurrentItem(topItem);
+            onTreeItemClicked(topItem, 0);
+        } else {
+            m_activeChannel.clear();
+        }
+    }
+    // If you want users to be able to delete files from the tree later:
+    else if (data.startsWith("FILE:")) {
+        delete currentItem;
+    }
 }
 
-void MainWindow::onRemoveCurrentChannel()
+void MainWindow::onTreeItemClicked(QTreeWidgetItem *item, int column) //AI Code to be replaced
 {
-    int row = m_channelList->currentRow();
-    if (row < 0) return;
-    QString name = m_channels[row];
-    m_channels.removeAt(row);
-    delete m_channelList->takeItem(row);
-    m_messages.remove(name);
+    if (!item) return;
 
-    if (!m_channels.isEmpty())
-        m_channelList->setCurrentRow(qMin(row, m_channels.size() - 1));
-    else
-        m_activeChannel.clear();
-}
+    QString data = item->data(0, Qt::UserRole).toString();
 
-void MainWindow::onChannelChanged(int row)
-{
-    if (row < 0 || row >= m_channels.size()) return;
-    m_activeChannel = m_channels[row];
-    m_chatView->loadChannel(m_activeChannel, m_messages[m_activeChannel]);
-    m_ws->joinChannel(m_activeChannel);
+    // Only switch the chat view if the user clicked a Channel
+    if (data.startsWith("CHANNEL:")) {
+        m_activeChannel = data.mid(8); // Strip "CHANNEL:" prefix
+
+        m_chatView->loadChannel(m_activeChannel, m_messages[m_activeChannel]);
+        m_ws->joinChannel(m_activeChannel);
+    }
 }
 
 void MainWindow::onSendMessage(const QString &text)
@@ -297,6 +341,7 @@ void MainWindow::onWsConnected()
     if (!m_activeChannel.isEmpty())
         m_ws->joinChannel(m_activeChannel);
 }
+
 
 void MainWindow::onWsDisconnected()
 {

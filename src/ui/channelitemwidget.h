@@ -9,5 +9,5 @@ public:
     ChannelItemWidget(const QString &name, const QString &preview,int unread, QWidget *parent = nullptr);
 
 signals:
-    void actionClicked();
+    void addFile();
 };

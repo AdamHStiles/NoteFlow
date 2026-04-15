@@ -24,6 +24,8 @@ qt_add_executable(NoteFlow
     wsclient.h
     fileEditor.cpp
     fileEditor.h
+    fileitemwidget.h
+    fileitemwidget.cpp
 )
 
 target_link_libraries(NoteFlow

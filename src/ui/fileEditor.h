@@ -18,6 +18,7 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QStatusBar>
+#include <QFileInfo>
 #include <Qsci/qsciscintilla.h>
 
 class QVBoxlayout;
@@ -33,8 +34,9 @@ public:
     explicit fileEditor(QWidget *parent = nullptr);
 signals:
 
-private slots:
-   // void loadFile(QFile file); // uploads a file to the editor and updates header
+public slots:
+    void loadFile(QString &path); // uploads a file to the editor and updates header
+    void newFile(QString *filename);
 
 private:
     QVBoxLayout *root;
@@ -43,6 +45,8 @@ private:
     QLabel *fileLabel;
     QFrame *divider;
     QsciScintilla *editor;
+    QFont font;
+    QString ext; //file extension
 };
 
 #endif // FILEVIEWER_H
