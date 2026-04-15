@@ -10,7 +10,6 @@ qt_add_executable(NoteFlow
     main.cpp
     mainwindow.cpp
     mainwindow.h
-    mainwindow.ui
     channelitemwidget.cpp
     channelitemwidget.h
     chatview.cpp
@@ -35,7 +34,7 @@ target_link_libraries(NoteFlow
         Qt6::Gui
         Qt6::PrintSupport
         Qt6::WebSockets
-        "C:/QScintilla_src/src/release/libqscintilla2_qt6.a" # your directory here!
+        "C:/QScintilla_src-2.14.1/src/release/libqscintilla2_qt6.a" # your directory here!
 )
 
 install(TARGETS NoteFlow
